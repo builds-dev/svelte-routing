@@ -1,4 +1,5 @@
-import { navigate } from "./history.js";
+import { getContext } from "svelte";
+import { HISTORY } from "./contexts.js";
 import { shouldNavigate, hostMatches } from "./utils.js";
 
 /**
@@ -11,6 +12,7 @@ import { shouldNavigate, hostMatches } from "./utils.js";
  * ```
  */
 function link(node) {
+  const { navigate } = getContext(HISTORY);
   function onClick(event) {
     const anchor = event.currentTarget;
 
@@ -51,6 +53,7 @@ function link(node) {
  * ```
  */
 function links(node) {
+  const { navigate } = getContext(HISTORY);
   function findClosest(tagName, el) {
     while (el && el.tagName !== tagName) {
       el = el.parentNode;

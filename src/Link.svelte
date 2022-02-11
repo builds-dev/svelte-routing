@@ -1,13 +1,14 @@
 <script>
   import { getContext, createEventDispatcher } from "svelte";
-  import { ROUTER, LOCATION } from "./contexts.js";
-  import { navigate } from "./history.js";
+  import { ROUTER, LOCATION, HISTORY } from "./contexts.js";
   import { startsWith, resolve, shouldNavigate } from "./utils.js";
 
   export let to = "#";
   export let replace = false;
   export let state = {};
   export let getProps = () => ({});
+  
+  const { navigate } = getContext(HISTORY);
 
   const { base } = getContext(ROUTER);
   const location = getContext(LOCATION);

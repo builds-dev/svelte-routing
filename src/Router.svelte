@@ -1,25 +1,24 @@
 <script>
   import { getContext, setContext, onMount } from "svelte";
   import { writable, derived } from "svelte/store";
-  import { LOCATION, ROUTER } from "./contexts.js";
-  import { globalHistory } from "./history.js";
+  import { LOCATION, ROUTER, HISTORY } from "./contexts.js";
   import { pick, match, stripSlashes, combinePaths } from "./utils.js";
 
   export let basepath = "/";
-  export let url = null;
-
+  export let history;
+  
+  setContext(HISTORY, history);
   const locationContext = getContext(LOCATION);
   const routerContext = getContext(ROUTER);
+  const historyContext = getContext(HISTORY);
 
   const routes = writable([]);
   const activeRoute = writable(null);
   let hasActiveRoute = false; // Used in SSR to synchronously set that a Route is active.
 
-  // If locationContext is not set, this is the topmost Router in the tree.
-  // If the `url` prop is given we force the location to it.
-  const location =
-    locationContext ||
-    writable(url ? { pathname: url } : globalHistory.location);
+  // If locationContext is not set, this is the topmost Router in the tree
+  // in which case we will pull location from historyContext
+  const location = locationContext || writable(historyContext.location);
 
   // If routerContext is set, the routerBase of the parent Router
   // will be the base for this Router's descendants.
@@ -108,7 +107,7 @@
     // The topmost Router in the tree is responsible for updating
     // the location store and supplying it through context.
     onMount(() => {
-      const unlisten = globalHistory.listen(history => {
+      const unlisten = historyContext.listen(history => {
         location.set(history.location);
       });
 
