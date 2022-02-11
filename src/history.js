@@ -3,8 +3,9 @@
  *
  * https://github.com/reach/router/blob/master/LICENSE
  * */
+import { writable, derived } from "svelte/store";
 
-function getLocation(source) {
+ function getLocation(source) {
   return {
     ...source.location,
     state: source.history.state,
@@ -12,13 +13,31 @@ function getLocation(source) {
   };
 }
 
+function getIndex(source) {
+  return source.history.index;
+}
+
+function getStack(source) {
+  return source.history.stack;
+}
+
 function createHistory(source, options) {
   const listeners = [];
-  let location = getLocation(source);
+  const location = writable(getLocation(source));
+  const index = writable(getIndex(source));
+  const stack = writable(getStack(source));
 
   return {
     get location() {
-      return location;
+      return derived(location, location => location);
+    },
+
+    get index() {
+      return derived(index, index => index);
+    },
+
+    get stack() {
+      return derived(stack, stack => stack);
     },
 
     listen(listener) {
@@ -41,18 +60,37 @@ function createHistory(source, options) {
 
     navigate(to, { state, replace = false } = {}) {
       state = { ...state, key: Date.now() + "" };
-      // try...catch iOS Safari limits to 100 pushState calls
-      try {
-        if (replace) {
-          source.history.replaceState(state, null, to);
-        } else {
-          source.history.pushState(state, null, to);
-        }
-      } catch (e) {
-        source.location[replace ? "replace" : "assign"](to);
-      }
+      // TODO: handle iOS Safari limits to 100 pushState calls
+      const method = replace ? source.history.replaceState : source.history.pushState
+      method(state, null, to);
 
-      location = getLocation(source);
+      location.set(getLocation(source));
+      index.set(getIndex(source));
+      stack.set(getStack(source));
+      console.log(index)
+      listeners.forEach(listener => listener({ location, action: "PUSH" }));
+    },
+
+    go(delta) {
+      source.history.go(delta);
+      location.set(getLocation(source));
+      index.set(getIndex(source));
+      const action = index === 0 ? "POP" : "PUSH";
+      listeners.forEach(listener => listener({ location, action }));
+    },
+
+    goBack() {
+      source.history.back()
+      location.set(getLocation(source));
+      index.set(getIndex(source));
+      const action = index === 0 ? "POP" : "PUSH"
+      listeners.forEach(listener => listener({ location, action }));
+    },
+
+    goForward() {
+      source.history.forward()
+      location.set(getLocation(source));
+      index.set(getIndex(source));
       listeners.forEach(listener => listener({ location, action: "PUSH" }));
     }
   };
@@ -63,6 +101,20 @@ function createMemorySource(initialPathname = "/") {
   let index = 0;
   const stack = [{ pathname: initialPathname, search: "" }];
   const states = [];
+  const go = (delta = 0) => {
+    console.log('go', delta)
+    const lower_bound = 0
+    const upper_bound = stack.length - 1
+    const requested_index = index + delta
+    if (requested_index < lower_bound) {
+      throw new Error(`Delta exceeds lower bound of history stack. Delta: ${delta}, Current: ${index}; Upper: ${upper_bound}; Lower: ${lower_bound}`)
+    }
+    if (requested_index > upper_bound) {
+      throw new Error(`Delta exceeds upper bound of history stack. Delta: ${delta}, Current: ${index}; Upper: ${upper_bound}; Lower: ${lower_bound}`)
+    }
+    index = Math.max(0, Math.min(index + delta, upper_bound));
+    console.log({ index, upper_bound })
+  }
 
   return {
     get location() {
@@ -80,8 +132,13 @@ function createMemorySource(initialPathname = "/") {
       get state() {
         return states[index];
       },
+      get stack() {
+        return stack;
+      },
       pushState(state, _, uri) {
         const [pathname, search = ""] = uri.split("?");
+        stack.splice(index + 1)
+        states.splice(index + 1)
         index++;
         stack.push({ pathname, search });
         states.push(state);
@@ -90,7 +147,14 @@ function createMemorySource(initialPathname = "/") {
         const [pathname, search = ""] = uri.split("?");
         stack[index] = { pathname, search };
         states[index] = state;
-      }
+      },
+      go,
+      back() {
+        go(-1);
+      },
+      forward() {
+        go(1);
+      },
     }
   };
 }
